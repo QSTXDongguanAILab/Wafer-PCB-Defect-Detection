@@ -1,0 +1,58 @@
+# Wafer-PCB-Defect-Detection 0.2.0
+app_name: PCB 与光伏硅片缺陷检测
+app_name_en: Wafer-PCB-Defect-Detection
+
+host: 127.0.0.1
+port: 8788
+device: cpu
+jpeg_quality: 90
+
+db_path: data/inspect.db
+outputs_dir: data/outputs
+models_dir: models
+artifacts_dir: artifacts
+logs_dir: logs
+
+# ============================================================
+# PCB 假点过滤(终检 AVI 复判)
+# ============================================================
+pcb:
+  # 训练/评测权重。文件不存在时接口返回 503,不会静默给错结果。
+  model_path: models/pcb_pair_cls.pt
+
+  # 原始数据根目录:下有 训练集/(散图未分类) 与 测试集/<类名>/
+  dataset_root: ../分类数据/PCB分类数据
+
+  # 输入表示:single(仅待检) / stack(待检+模板 6ch) / diff(差分 3ch) / stack_diff(9ch)
+  # 这是本任务最关键的超参,基线阶段必须四种都跑一遍再定。
+  input_mode: stack_diff
+  img_size: 96
+
+  # 放行判定:预测为「假点」且概率 ≥ release_min_prob 才放行,否则转人工复检。
+  # 漏检(真缺陷判成假点)是事故,误报只是多一次复检 —— 阈值宁高勿低。
+  release_min_prob: 0.90
+
+  # 训练
+  epochs: 30
+  batch_size: 32
+  lr: 0.001
+  weight_decay: 0.0001
+  seed: 20260901
+  val_ratio: 0.25
+  # 多分类头在总损失中的权重(主任务是二分类:假点 vs NG)
+  multi_loss_weight: 0.5
+
+# ============================================================
+# 光伏硅片缺陷检测(切片后分选)
+# ============================================================
+wafer:
+  model_path: models/wafer_yolo.pt
+  dataset_root: ../分类数据/硅片分类数据/硅片分类数据
+  yolo_dir: data/wafer/yolo
+  img_size: 640
+  epochs: 100
+  batch_size: 16
+  seed: 20260901
+  val_ratio: 0.2
+  conf: 0.25
+  iou: 0.5

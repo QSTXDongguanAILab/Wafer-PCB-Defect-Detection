@@ -1,0 +1,23 @@
+# Wafer-PCB-Defect-Detection — Python 3.10+,CPU 优先
+# PCB 假点过滤是 100x100 小图分类,CPU 可训;光伏硅片检测建议 GPU。
+
+# --- Web 服务 ---
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+pydantic>=2.6.0
+
+# --- 通用 ---
+pyyaml>=6.0.1
+numpy>=1.26.0
+pillow>=10.0.0
+opencv-python>=4.8.0
+
+# --- PCB 假点过滤(成对 ROI 分类) ---
+torch>=2.2.0
+torchvision>=0.17.0
+
+# --- 光伏硅片缺陷检测(VOC -> YOLO) ---
+ultralytics>=8.3.0
+
+# --- 缺陷处置 RAG/Agent 见 rag_agent/requirements.txt(按需安装) ---

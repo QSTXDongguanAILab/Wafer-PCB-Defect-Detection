@@ -1,0 +1,37 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# 权重与导出模型:走 GitHub Release,不进仓库
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# 数据与产物
+data/pcb/**
+data/wafer/**
+data/outputs/**
+data/*.db
+!data/**/.gitkeep
+artifacts/**
+!artifacts/.gitkeep
+logs/**
+!logs/.gitkeep
+runs/
+models/**
+!models/.gitkeep
+
+# RAG 向量库(本地重建即可)
+rag_agent/data/chroma/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.zcode/
+.DS_Store
+Thumbs.db
+*.log
+tmp/
