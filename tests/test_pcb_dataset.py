@@ -9,7 +9,14 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pcb.dataset import collect_pairs, describe, group_split, parse_stem, split_labeled
+from pcb.dataset import (
+    collect_pairs,
+    describe,
+    group_split,
+    model_split,
+    parse_stem,
+    split_labeled,
+)
 from pcb.labels import canonical, decide, is_ok, label_id, part_of
 
 
@@ -18,19 +25,28 @@ def _img(path: Path) -> None:
     Image.new("RGB", (100, 100), (128, 128, 128)).save(path)
 
 
-def _pair(directory: Path, board: str, unit: int, item: str = "线路", idx: int = 0) -> str:
-    stem = f"Cons_{board}_{unit}_{item}_{idx}"
+def _pair(
+    directory: Path, board: str, unit: int, item: str = "线路", idx: int = 0, model: str = "Cons"
+) -> str:
+    stem = f"{model}_{board}_{unit}_{item}_{idx}"
     _img(directory / f"{stem}.jpg")
     _img(directory / f"{stem}_T.jpg")
     return stem
 
 
 def test_parse_stem():
-    assert parse_stem("Cons_202312250505183453_41_线路_1") == ("202312250505183453", "41", "线路")
+    assert parse_stem("Cons_202312250505183453_41_线路_1") == (
+        "Cons",
+        "202312250505183453",
+        "41",
+        "线路",
+    )
+    # 实测存在第二个机种前缀
+    assert parse_stem("Pros_20240817123_7_大焊盘1_0")[0] == "Pros"
     # AVI 检测项自身带下划线也要能切对
-    assert parse_stem("Cons_A_7_大焊盘_均匀度_3") == ("A", "7", "大焊盘_均匀度")
-    # 格式不符时不炸,整段当板号
-    assert parse_stem("weird") == ("weird", "", "")
+    assert parse_stem("Cons_A_7_大焊盘_均匀度_3") == ("Cons", "A", "7", "大焊盘_均匀度")
+    # 格式不符时不炸,整段当板号,机种留空
+    assert parse_stem("weird") == ("", "weird", "", "")
 
 
 def test_collect_pairs_labels_from_dir(tmp_path: Path):
@@ -75,6 +91,24 @@ def test_group_split_is_deterministic(tmp_path: Path):
     a = group_split(labeled, 0.25, 42)
     b = group_split(labeled, 0.25, 42)
     assert [p.stem for p in a[1]] == [p.stem for p in b[1]]
+
+
+def test_model_split_holds_out_whole_product(tmp_path: Path):
+    """换型泛化只能靠没训过的机种来验,不能靠按板号切。"""
+    for board in ("C1", "C2"):
+        _pair(tmp_path / "假点", board, 0, model="Cons")
+    _pair(tmp_path / "焊盘氧化", "P1", 0, model="Pros")
+
+    pairs = collect_pairs(tmp_path)
+    train, holdout = model_split(pairs, "Pros")
+    assert {p.model_code for p in train} == {"Cons"}
+    assert {p.model_code for p in holdout} == {"Pros"}
+
+    snap = describe(pairs)
+    assert snap["by_model"] == {"Cons": 2, "Pros": 1}
+
+    with pytest.raises(ValueError):
+        model_split(pairs, "NotAModel")
 
 
 def test_labels_helpers():

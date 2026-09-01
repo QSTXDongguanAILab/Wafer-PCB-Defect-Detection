@@ -23,7 +23,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from app.config import get_settings
-from pcb.dataset import collect_pairs, describe, group_split, split_labeled
+from pcb.dataset import collect_pairs, describe, group_split, model_split, split_labeled
 from pcb.labels import LABELS, NUM_CLASSES, OK_ID
 from pcb.loader import INPUT_MODES, PairDataset
 from pcb.metrics import (
@@ -78,6 +78,7 @@ def train_once(
     *,
     input_mode: str,
     epochs: int,
+    holdout_model: str | None = None,
     verbose: bool = True,
 ) -> dict:
     s = get_settings()
@@ -91,7 +92,12 @@ def train_once(
         raise RuntimeError(
             f"{root} 下没有已标注样本。标注数据应放成 <类名>/xxx.jpg + xxx_T.jpg"
         )
-    train_pairs, val_pairs = group_split(labeled, cfg.val_ratio, cfg.seed)
+    if holdout_model:
+        train_pairs, val_pairs = model_split(labeled, holdout_model)
+        split_desc = f"留出机种 {holdout_model}(跨机种泛化)"
+    else:
+        train_pairs, val_pairs = group_split(labeled, cfg.val_ratio, cfg.seed)
+        split_desc = "按板号分组"
     if not val_pairs:
         raise RuntimeError("验证集为空,调大 pcb.val_ratio 或补充更多板号")
 
@@ -149,6 +155,8 @@ def train_once(
     return {
         "input_mode": input_mode,
         "epochs": epochs,
+        "split": split_desc,
+        "holdout_model": holdout_model,
         "train_pairs": len(train_pairs),
         "val_pairs": len(val_pairs),
         "train_boards": len({p.board for p in train_pairs}),
@@ -164,6 +172,12 @@ def main() -> None:
     ap.add_argument("--input-mode", choices=INPUT_MODES, default=None)
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--compare", action="store_true", help="四种输入表示各训一遍出对比表")
+    ap.add_argument(
+        "--holdout-model",
+        default=None,
+        metavar="机种",
+        help="留出整个机种当验证集(如 Pros),用来测换型泛化;默认按板号分组切",
+    )
     ap.add_argument("--quick", action="store_true", help="冒烟:不写权重")
     args = ap.parse_args()
 
@@ -177,10 +191,10 @@ def main() -> None:
 
     results = []
     for mode in modes:
-        r = train_once(input_mode=mode, epochs=epochs)
+        r = train_once(input_mode=mode, epochs=epochs, holdout_model=args.holdout_model)
         results.append(r)
 
-    print("\n=== 输入表示对比(NG 召回 ≥99% 时的假点过滤率)===")
+    print(f"\n=== 输入表示对比(切分:{results[0]['split']};NG 召回 ≥99% 时的假点过滤率)===")
     print(f"{'input_mode':<12}{'过滤率':>10}{'阈值':>8}{'漏检':>6}{'多分类acc':>10}{'耗时s':>8}")
     for r in results:
         op = r["best"]["op_recall99"]
@@ -209,6 +223,10 @@ def main() -> None:
 
     if args.quick:
         print("--quick:跳过写权重")
+        return
+    if args.holdout_model:
+        # 留出机种是评估用的,训练集少了一整个机种,不该拿它当交付权重
+        print(f"--holdout-model {args.holdout_model}:这是泛化评估,不写权重")
         return
     ckpt = save_checkpoint(
         winner["_model"],

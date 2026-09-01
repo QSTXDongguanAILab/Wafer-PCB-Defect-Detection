@@ -4,10 +4,17 @@
     <stem>.jpg    待检图
     <stem>_T.jpg  同位置的标准模板图
 
-文件名:Cons_<板号>_<单元号>_<AVI检测项>_<序号>[_T].jpg
+文件名:<机种>_<板号>_<单元号>_<AVI检测项>_<序号>[_T].jpg
 例:   Cons_202312250505183453_41_线路_1.jpg
 
+实测有两个机种前缀:Cons(1006 对)与 Pros(492 对),两者的类别分布差别很大
+(基材擦花只在 Cons 出现,焊盘划痕主要在 Pros)。客户抱怨的「AVI 换型泛化差」
+就指这件事,所以机种要单独作为一维记录,便于做跨机种的留出评估。
+
 标签来自所在目录名(测试集/<类名>/);直接散落在根目录的为未标注样本。
+
+**注意**:原始数据的「训练集」「测试集」两个目录有 57 个板号是重叠的。
+不要按目录名当 train/test 用 —— 那是泄漏。一律先合并再用 group_split 按板号切。
 """
 from __future__ import annotations
 
@@ -30,6 +37,7 @@ class Pair:
     test_path: Path
     template_path: Path | None
     label: str | None  # 规范类名;None = 未标注
+    model_code: str  # 机种(Cons / Pros),跨机种泛化评估用
     board: str  # 板号,切分时按它分组,防同板泄漏
     unit: str  # 板内单元号
     avi_item: str  # AVI 检测项目(线路 / 大焊盘均匀度 / 漏铜 ...)
@@ -39,12 +47,15 @@ class Pair:
         return self.template_path is not None
 
 
-def parse_stem(stem: str) -> tuple[str, str, str]:
-    """从文件名主干取 (板号, 单元号, AVI检测项)。格式不符时退化为整段当板号。"""
+def parse_stem(stem: str) -> tuple[str, str, str, str]:
+    """从文件名主干取 (机种, 板号, 单元号, AVI检测项)。
+
+    格式不符时退化为整段当板号,机种留空 —— 宁可少一维信息,不要整条样本丢掉。
+    """
     parts = stem.split("_")
     if len(parts) < 5:
-        return stem, "", ""
-    return parts[1], parts[2], "_".join(parts[3:-1])
+        return "", stem, "", ""
+    return parts[0], parts[1], parts[2], "_".join(parts[3:-1])
 
 
 def _label_from_dir(directory: Path) -> str | None:
@@ -76,13 +87,14 @@ def collect_pairs(root: Path) -> list[Pair]:
         for stem, path in sorted(files.items()):
             if stem.endswith(TEMPLATE_SUFFIX):
                 continue  # 模板图由它的待检图带出
-            board, unit, avi_item = parse_stem(stem)
+            model_code, board, unit, avi_item = parse_stem(stem)
             pairs.append(
                 Pair(
                     stem=stem,
                     test_path=path,
                     template_path=files.get(stem + TEMPLATE_SUFFIX),
                     label=label,
+                    model_code=model_code,
                     board=board,
                     unit=unit,
                     avi_item=avi_item,
@@ -129,6 +141,23 @@ def group_split(
     return train, val
 
 
+def model_split(
+    pairs: list[Pair], holdout_model: str
+) -> tuple[list[Pair], list[Pair]]:
+    """按机种留出:holdout_model 整个机种当验证集,其余训练。
+
+    这是回答「换型泛化」的唯一诚实做法 —— 按板号切只能证明模型在**见过的机种**上行,
+    换个料号还能不能用,必须靠没训过的机种来验。
+    """
+    holdout = [p for p in pairs if p.model_code == holdout_model]
+    rest = [p for p in pairs if p.model_code != holdout_model]
+    if not holdout:
+        raise ValueError(
+            f"没有机种 {holdout_model!r} 的样本(已知 {sorted({p.model_code for p in pairs})})"
+        )
+    return rest, holdout
+
+
 def class_counts(pairs: list[Pair]) -> dict[str, int]:
     counts = Counter(p.label or "(未标注)" for p in pairs)
     return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
@@ -143,6 +172,10 @@ def describe(pairs: list[Pair]) -> dict:
         "unlabeled": len(unlabeled),
         "missing_template": sum(1 for p in pairs if not p.has_template),
         "boards": len({p.board for p in pairs}),
+        "by_model": dict(Counter(p.model_code or "(未知)" for p in pairs).most_common()),
+        "labeled_by_model": dict(
+            Counter(p.model_code or "(未知)" for p in labeled).most_common()
+        ),
         "by_class": class_counts(labeled),
         "by_avi_item": dict(
             sorted(Counter(p.avi_item for p in pairs).items(), key=lambda kv: -kv[1])
