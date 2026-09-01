@@ -21,7 +21,10 @@
 - `app/static/`:看板前端。类别表由 `/tasks` 驱动,前端不写死类名。
 - `rag_agent/`:代码整体复用;SOP 重写为 PCB 十类(11 篇,均标「待工艺确认」);
   高危词表、SYSTEM_PROMPT、`top_label→label` 字段适配已改完。
-- `scripts/`:`run_api` / `data_report` / `prelabel_pcb` / `smoke_test`。
+- `scripts/`:`launch` / `run_api` / `data_report` / `prelabel_pcb` / `smoke_test`。
+- 一键启动:双击 `启动.bat`(→ `run.bat` → `scripts/launch.py`)。自动选解释器、
+  当前解释器缺依赖时换到有依赖的环境、端口被占顺延、等 `/health` 通了再开浏览器。
+  非本机监听会打印「无鉴权」警告。
 - `tests/`:18 项单测,覆盖文件名解析、分组切分无泄漏、判级不对称、指标口径、VOC 越界裁剪。
 
 ## 明确未做

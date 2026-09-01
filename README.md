@@ -54,6 +54,8 @@ PCB 这个任务**不能用 accuracy 汇报**,因为误判成本不对称:
 ## 目录结构
 
 ```
+启动.bat             双击启动(中文名入口,内部 call run.bat)
+run.bat              启动器:找 Python(ASCII 文件名+ASCII 内容,避开中文路径的代码页坑)
 app/                 FastAPI 服务
   config.py          config.yaml 加载(嵌套 pcb / wafer 两段)
   db.py              SQLite 记录,两条业务线共用一张表
@@ -74,7 +76,7 @@ wafer/               光伏硅片检测
   prepare.py         数据准备 + 硅片号分组切分
   train.py / infer.py
 rag_agent/           缺陷处置 RAG + Agent(SOP 已重写为 PCB 十类)
-scripts/             run_api / data_report / prelabel_pcb / smoke_test
+scripts/             launch / run_api / data_report / prelabel_pcb / smoke_test
 tests/               pytest 单测(18 项)
 ```
 
@@ -147,10 +149,22 @@ python -m wafer.train --epochs 100
 
 ### 起服务
 
+**双击 `启动.bat`** 就行:自动找解释器 → 查依赖(缺了就换装好的那个环境)→ 端口被占就顺延 →
+等 `/health` 通了自动开浏览器。真正的逻辑在 `run.bat` + `scripts/launch.py`,
+`启动.bat` 只是个中文名快捷入口。
+
+命令行等价写法:
+
 ```bash
-python scripts/run_api.py            # 默认 http://127.0.0.1:8788/
-python scripts/run_api.py --reload   # 开发用
+python scripts/launch.py                       # 等同双击
+python scripts/launch.py --reload              # 开发用,改代码自动重载
+python scripts/launch.py --no-browser --port 8790
+python scripts/run_api.py                      # 不做任何自动处理的裸启动
 ```
+
+默认只监听 `127.0.0.1`。**本服务没有登录与鉴权** —— 把 `config.yaml` 的 `host` 改成
+`0.0.0.0` 之前先想清楚:局域网里任何人都能上传图片、读写检测记录、删数据。
+启动器检测到非本机监听会打印警告。
 
 主要接口:
 
