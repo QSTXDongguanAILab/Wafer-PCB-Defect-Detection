@@ -60,15 +60,27 @@ def missing_deps(python: str | None = None) -> list[str]:
 def candidate_interpreters() -> list[Path]:
     """按优先级找解释器。
 
-    本仓库还没单独建 venv,所以第二顺位是旁边 ShopInspect 的 venv
-    （torch / ultralytics / langchain 都装在那里）。路径在 Python 里拼,
-    不经过 cmd 的代码页,中文目录名不会出问题。
+    1) 仓库自己的 .venv(推荐:python -m venv .venv 后装依赖);
+    2) 自动发现仓库旁两层内的 .venv / .venv-* 目录(合作者各自机器上
+       总会有装好 torch / ultralytics 的相邻项目,不写死具体项目名或
+       目录布局 —— 每台机器长什么样都扫得出来)。
+    候选是否真可用由 missing_deps() 逐个判断,这里只负责列出来。
+    路径在 Python 里拼,不经过 cmd 的代码页,中文目录名不会出问题。
     """
     sub = "Scripts/python.exe" if os.name == "nt" else "bin/python"
-    return [
-        ROOT / ".venv" / sub,
-        ROOT.parent / "AI视觉" / "ShopInspect" / ".venv" / sub,
-    ]
+    ordered: list[Path] = [ROOT / ".venv" / sub]
+    for pattern in ("*/.venv*", "*/*/.venv*"):
+        for venv in sorted(ROOT.parent.glob(pattern)):
+            if venv.is_dir():
+                ordered.append(venv / sub)
+    # 去重且保持优先级顺序
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for p in ordered:
+        if p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return unique
 
 
 def relaunch_if_needed() -> None:
