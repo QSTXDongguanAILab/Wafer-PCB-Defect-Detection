@@ -4,7 +4,9 @@ app_name_en: Wafer-PCB-Defect-Detection
 
 host: 127.0.0.1
 port: 8788
-device: cpu
+# device: auto = 有 NVIDIA GPU 用 GPU、无 GPU 回退 CPU(PCB 训练/推理与硅片 YOLO 共用)。
+# 换机器只改这一处;也可写死 cpu,或 GPU 编号 0 / 0,1。
+device: auto
 jpeg_quality: 90
 
 db_path: data/inspect.db

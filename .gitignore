@@ -27,6 +27,13 @@ models/**
 # RAG 向量库(本地重建即可)
 rag_agent/data/chroma/
 
+# 需求 PDF 与仓库内数据集副本(已被 config.local.yaml 指向,数据不入库)
+PCB和光伏板项目需求说明.pdf
+分类数据/
+
+# 本机覆盖配置(每台机器自己的 device / 数据路径等)
+config.local.yaml
+
 # 编辑器 / 系统
 .idea/
 .vscode/
