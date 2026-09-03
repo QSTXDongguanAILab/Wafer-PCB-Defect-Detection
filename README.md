@@ -96,6 +96,10 @@ pcb:   dataset_root: ../分类数据/PCB分类数据
 wafer: dataset_root: ../分类数据/硅片分类数据/硅片分类数据
 ```
 
+> 数据位置、device(GPU/CPU)、端口等**本机差异不改上面这份共享配置** —— 在仓库根
+> 目录建 `config.local.yaml`(已 gitignore)覆盖任意键;环境、GPU、本地覆盖机制的
+> 完整说明见 **SETUP.md**。
+
 ---
 
 ## 怎么跑
